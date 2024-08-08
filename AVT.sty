@@ -60,6 +60,8 @@
 \RequirePackage[T1]{fontenc}
 \fi
 \ifAVT@packages@nohyperref\else 
+\ifAVT@notes\RequirePackage{setspace}\fi
+\ifAVT@poster\RequirePackage{setspace}\fi
 \RequirePackage{hyperref}
 \fi
 \ifAVT@packages@nomicrotype\else 
