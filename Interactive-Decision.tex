@@ -635,10 +635,10 @@ For $t=1,..,T$:
 Episodic reinforcement learning embeds into this problem class.
 In particular, this means that if we understand sample complexity of this problem class, we understand the sample complexity of reinforcement learning.
 
-One can define the notion of a \emphmarginnote{decision-estimation coefficient} here too, with one modification: estimation error, at least for the discrete case, needs to be replaced with the Hellinger distance.
+One can define the notion of a \emphmarginnote{decision-estimation coefficient} here too, with one modification: estimation error, at least for the discrete case, needs to be replaced with the squared Hellinger distance $D^2_{\f{H}}$.
 This gives 
 \[
-\f{dec}_\gamma^{\f{H}}(\c{F},\hat{f}) = \min_{p\in\Delta(\Pi)} \max_{M\in\c{M}} \E*_{\pi\~p} f^M(\pi^M) - f^M(\pi) - \gamma \E*_{\pi\~p} D_{\f{H}}(M(\.\given\pi), \h{M}(\.\given\pi))^2
+\f{dec}_\gamma^{\f{H}}(\c{F},\hat{f}) = \min_{p\in\Delta(\Pi)} \max_{M\in\c{M}} \E*_{\pi\~p} f^M(\pi^M) - f^M(\pi) - \gamma \E*_{\pi\~p} D^2_{\f{H}}(M(\.\given\pi), \h{M}(\.\given\pi))
 .
 \]
 The constrained version is defined similarly, but where we now have a Hellinger ball as our constraint.
