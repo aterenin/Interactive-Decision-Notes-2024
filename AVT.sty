@@ -84,6 +84,7 @@
 \RequirePackage[scr]{rsfso}
 \RequirePackage{mathtools}
 \RequirePackage{mathcommand}
+\RequirePackage{aligned-overset}
 \RequirePackage{stmaryrd}
 \SetSymbolFont{stmry}{bold}{U}{stmry}{m}{n}
 \DeclareMathAlphabet\bc{OMS}{cmsy}{b}{n}
@@ -217,7 +218,8 @@
 \newcommand{\directsum}{\bigoplus} % direct sum
 \newcommand{\embeds}{\hookrightarrow} % embedding
 \newcommand{\boundedby}{\lesssim} % bounded by
-\renewmathcommand{\o}{\circ} % circle product
+\newcommand{\bounds}{\gtrsim} % bounds
+\renewmathcommandPIE{\o}{\IfEmptyTF{#3}{\circ}{\overset{\text{\GetExponent{#3}}}}} % circle product and overset
 \newcommand{\ox}{\otimes} % tensor product
 \newcommand{\OX}{\bigotimes} % big tensor product
 \renewmathcommand{\.}{\cdot} % dot binary operation
