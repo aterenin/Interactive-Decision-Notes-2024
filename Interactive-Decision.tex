@@ -1,14 +1,651 @@
 \documentclass{article}
-\usepackage{graphicx} % Required for inserting images
+
+\usepackage[notes,centerfigures,commands,enumerate,environments,theorems,lmrscinnershape]{AVT}
 
 \title{Course Notes on Inteactive Decision-making}
-\author{Alexander Terenin}
-\date{August 2024}
+\author{Short Course given by Sasha Rakhlin\\[1ex]Princeton ML Theory Summer School 2024\\[1ex]Notes taken by Alexander Terenin}
 
 \begin{document}
 
 \maketitle
 
-\section{Introduction}
+\section{Refresher: Statistical Learning}
+
+\subsection{Offline Regression}
+
+We have a dataset $(x,y)$ with:
+\1 Classification: $x_i \in X$, $y_i \in [0,1]$
+\2 IID data: $(x_t, y_t) \~ \c{P}_{xy}$
+\3 Square loss: $\ell(f(x),y) = (f(x) - y)^2$
+\4 Function class: $\c{F} = \{ f : X \-> [0,1]\}$.
+\0 
+Denote the \emphmarginnote{conditional mean} by 
+\[
+f^*(\.) = \E(y \given x=(\.))
+\]
+Assume $f^* \in \c{F}$.
+Then the \emphmarginnote{estimation error} of $\hat{f} : X \-> [0,1]$ is 
+\[
+\c{E}(\hat{f}) = \E_x(\hat{f}(x) - f^*(x))^2 
+.
+\]
+Define the \emphmarginnote{empirical risk minimizer}
+\[
+\hat{f} \in \argmin_{f\in\c{F}} \frac{1}{T} \sum_{i=1}^T (f(x_i) - y_i)^2
+.
+\]
+
+\begin{lemma}
+For finite $\c{F}$, under the preceding assumptions, we have 
+\[
+\E \c{E}(\hat{f}) \boundedby \frac{\log |\c{F}|}{T} 
+\]
+\end{lemma}
+
+\begin{proof}
+Homework: prove this via Bernstein's inequality.
+\end{proof}
+
+The rate $\log |\c{F}|$ is called the \emphmarginnote{fast rate}, in contrast with square-root rates.
+
+\subsection{Online Regression}
+
+For $t=1,..,T$:
+\1 The learner chooses a potentially-random $\hat{f}_t : \c{X} \-> [0,1]$.
+\2 Nature chooses and reveals $(x_t, y_t) \in X \x [0,1]$.
+\0 
+We again assume that 
+\[
+\E(y_t \given x_t = x) = f^*(x)
+\]
+namely that the $x$-values are arbitrary, but $y$-values are drawn from a distribution $f^*(x)$.
+We also assume that $\hat{f}_t(\.) = \hat{f}_t(\. \given \c{H}_{t-1})$, namely the learner's strategy can only depend on the history, and in principle allow $\hat{f}-t \~ q_t \in \Delta(\c{F})$.
+Define the \emphmarginnote{regret}
+\[
+\f{Reg}_{\f{sq}} &= \sum_{t=1}^T (\hat{f}_t(x_t) - y_t)^2 - \min_{f\in\c{F}} \sum_{t=1}^T (f(x_t) - y_t)^2
+\] 
+and \emphmarginnote{estimation error}
+\[
+\f{Est}_{\f{sq}} &= \sum_{t=1}^T (\hat{f}_t (x_t) - f^*(x_t))^2
+\]
+both of which are random variables.
+Note that all infima over $\c{F}$ are achieved because it is assumed finite.
+
+\begin{lemma}[Regret lower bound via estimation error]
+We have 
+\[
+\E \f{Est}_{\f{sq}} \leq \E \f{Reg}_{\f{sq}}
+\]
+\end{lemma}
+
+\begin{proof}
+Start from the previous expressions and add-subtract appropriate terms.
+\end{proof}
+
+\begin{lemma}[Regret upper bound]
+There exists a way of choosing $\hat{f}_t$ such that 
+\[
+\E \f{Reg}_{\f{sq}} \boundedby \frac{\log|\c{F}|}{T}
+.
+\]
+Specifically, the algorithm is averaged exponential weights: compute
+\[
+q_t(f) \propto \exp\del{-\eta \sum_{s=1}^{t-1} (f(x_s) - y_s)^2}
+\]
+and choose $\hat{f}_t = \E_{f\~ q_t}(f)$ for an appropriate parameter $\eta$.
+\end{lemma}
+
+\begin{proof}
+Exercise.
+\end{proof}
+
+This is the same result as in statistical learning theory, but implies via regret a bound on the estimation error.
+Note that $\hat{f}_t$ above need not be in the function class $\c{F}$, particularly if it is finite.
+For more on this, one can read Cesa-Bianchi--Lugosi (2006), specifically the part about mixable losses.
+
+The point is that we can do statistical estimation in settings even if the $x$-values are arbitrary.
+Later on, the $x$-values are going to come from some complicated distribution based on our own previous choices which is impossible to model, so our plan is going to be to treat them as arbitrary.
+
+\paragraph{Aside on randomization}
+Let us remark why the learner does not need to randomize, in spite of the fact that they play first.
+Let $\ell : A \x B \-> \R$ be convex, and note that 
+\[
+\inf_{p\in\Delta(A)} \sup_{q\in\Delta(B)} \E*_{\substack{a\~p\\b\~q}}\ell(a,b) &= \inf_{p\in\Delta(A)} \sup_{b\in B} \E*_{a\~p}\ell(a,b) \leq \inf_{a\in A} \sup_{b\in B} \ell(a,b)
+\]
+by taking the infimum over a smaller set.
+On the other hand, since optimizing over some set of numbers is equivalent to optimizing over distributions whose expectations map onto the same set of numbers, and since $\ell$ is convex, applying Jensen's Inequality gives
+\[
+\inf_{a\in A} \sup_{b\in B} \ell(a,b) = \inf_{p\in\Delta(A)} \sup_{b\in B} \ell\del{\E*_{a\~p} a,b} \leq \inf_{p\in\Delta(A)} \sup_{b\in B} \E*_{a\~p}\ell(a,b)
+.
+\]
+This proves that if $\ell$ is convex, and a Nash equilibrium exists, then a deterministic Nash also exists.
+
+\section{Multi-armed Bandits}
+
+Here, we have a set of \emph{decisions}, \emph{actions}, or \emph{arms} $\Pi = \{1,..,A\}$.
+The problem can be expressed as a repeated interaction.
+For $t=1,..,T$:
+\1 The decision-maker selects $\pi_t \~ p_t \in \Delta(\Pi)$
+\2 The decision-maker observes a reward $r_t$.
+\0
+We assume that $r_t \in [0,1]$ and that the reward follow the optimal \emphmarginnote{model}
+\[
+r_t \~ M^*(\. \given \pi_t)
+.
+\]
+This choice of terminology will become clear later. 
+Define the \emphmarginnote{optimal rewards}
+\[
+f^*(\pi) = \E^{M^*}(r \given \pi)
+\]
+where this notation means that the reward is drawn according to the distribution defined by $M^*$ given the choice of an action $\pi$.
+The decision-maker's \emphmarginnote{regret} is 
+\[
+\f{Reg}_{\f{DM}} = \sum_{t=1}^T \max_{\pi^*} f^*(\pi^*) - \E*_{\pi_t\~p_t} f^*(\pi_t)
+.
+\]
+In this setting, \emphmarginnote{exploration} is \emph{necessary} in order to minimize regret: one cannot simply act according to the best actions seen in the past.
+Define 
+\[
+\hat{f}_t(n) = \frac{1}{n_t(\pi)} \sum_{s=1}^{t-1} r_s \1_{\pi_s = \pi}
+\]
+where $n_t(\pi)$ is the number of times an arm has been chosen up to time $t$.
+Define the \emphmarginnote{greedy algorithm} to be the one that chooses
+\[
+\pi_t = \argmax_{\pi\in\Pi} \hat{f}_t(\pi)
+\]
+and this algorithm fails on the following example: take $A = 2$, and let $M^*(\.\given 1) = \delta_{1/2}$, and $M^*(\.\given 2) = \f{Ber}(3/4)$.
+Then under appropriate initialization, with probability $1/4$ we get zero from arm $2$, and never choose it again, incurring linear regret. 
+As consequence, we incur linear regret in expectation.
+One can instead consider \emphmarginnote{the $\eps$-greedy algorithm}, which picks greedy $\hat\pi_t$ with probability $1-\eps$, and with probability $\eps$ picks $\pi_t \~[U](\Pi)$, which we note makes sense because $\Pi$ is finite.
+
+\begin{lemma}[Regret bound: $\eps$-greedy algorithm]
+Let $\eps \~ \del{\frac{A \log \frac{AT}{\delta}}{T}}^{1/3}$.
+Then with probability $1-\delta$, the $\eps$-greedy algorithm has
+\[
+\f{Reg}_{\f{DM}} \leq A^{1/3} T^{2/3} \del{\log \frac{AT}{\delta}}^{1/3}
+.
+\]
+\end{lemma}
+
+\begin{proof}[Proof sketch.]
+Write 
+\[
+\f{Reg}_{\f{DM}} &= \sum_{t=1}^T f^*(\pi^*) - \E_{\pi_t\~p_t} f^*(\pi_t)
+\\
+\o^{(i)}&\leq (1-\eps) \sum_{t=1}^T f^*(\pi^*) - f^*(\hat\pi_t) + \eps T
+\\
+\o^{(ii)}&\leq \sum_{t=1}^T \max_{\pi\in\{\pi_t,\pi^*\}} |f^*(\pi) - \hat{f}_t(\pi)| + \eps T
+\\
+&\leq \sum_{t=1}^T \sqrt{\frac{\1_{\pi_t = \pi}}{n_t(\pi)}} + \eps T
+\]
+where (i) conditions on whether exploration occurs or not, and if it does, just bounds this by the number of time steps, (ii) follows by a one-line exercise and by bounding $(1-\eps)$ by $1$.
+We know that $n_t(\pi) \~ \frac{t\eps}{A}$ by a back-of-the-envelope calculation, which gives 
+\[
+\f{Reg}_{\f{DM}} \leq \sum_{t=1}^T \sqrt{\frac{A}{\eps t}} + \eps T
+\]
+which gives the morally correct answer which drops various log factors.
+\end{proof}
+
+This is not the correct rate for this setting, but it is a start.
+
+\subsection{Optimism}
+
+A better approach is to apply the \emphmarginnote{upper confidence bound (UCB)} algorithm, an instance of a general technique called optimism.
+The idea is to construct 
+\[
+\widebar{f}_t &: \Pi \-> \R
+&
+\underline{f}_t &: \Pi \-> \R
+\]
+such that with high probability, we have 
+\[
+\underline{f}_t \leq f^* \leq \widebar{f}_t
+\]
+pointwise.
+This goes back to Lai and Robbins (1985).
+Let 
+\[
+\pi_t = \argmax_{\pi\in\Pi} \widebar{f}_t(\pi)
+.
+\]
+Let's analyze this. 
+Write the \emphmarginnote{regret} as
+\[
+\f{Reg}_{\f{DM}} &= \sum_{t=1}^T f^*(\pi^*) - f^*(\pi_t)
+\\
+\o^{(i)}&\leq \sum_{t=1}^T \widebar{f}_t(\pi^*) - \underline{f}_t(\pi_t)
+\\ 
+\o^{(ii)}&\leq \sum_{t=1}^T \widebar{f}_t(\pi_t) - \underline{f}_t(\pi_t)
+\]
+where (i) holds by upper bounds, and (ii) holds by optimality of $\pi_t$.
+For an appropriate choice of \emphmarginnote{upper and lower confidence bounds}, letting $\hat{f}_t(\pi)$ be the mean, we have
+\[
+\widebar{f}_t(\pi) &= \hat{f}_t(\pi) + C \frac{\sqrt{\log(AT/\delta)}}{n_t(\pi)}
+&
+\underline{f}_t(\pi) &= \hat{f}_t(\pi) - C \frac{\sqrt{\log(AT/g)}}{n_t(\pi)}
+.
+\]
+As consequence, we get 
+\[
+\f{Reg}_{\f{DM}} \o^{(iii)}\leq \sum_{t=1}^T \frac{1}{\sqrt{n_t(\pi)}} \1_{\pi_t = \pi} \sqrt{\log (..)} \o^{(iv)}\leq \sqrt{AT \log \frac{AT}{\delta}}
+\]
+where (iii) follows by an appropriate calculation left as exercise, and (iv) follows by what is known as a potential lemma.
+
+\subsection{Contextual Bandits}
+
+Let's make the game more complicated by adding context. In this setting, we can also for instance study function approximation.
+For $t=1,..,T$:
+\1 Observe $x_t \in X$.
+\2 Choose $\pi_t \~ p_t \in \Delta(\Pi)$.
+\3 Observe $r_t \~ M^*(\. \given \pi_t, x_t)$.
+\0
+Let 
+\[
+f^*(x,\pi) = \E^{M^*}(r \given x,\pi)
+\]
+We allow infinite $X$, potentially uncountable.
+We have some 
+\[
+\c{F} = \{f : X \x \Pi \-> [0,1]\}
+\]
+for which we assume the following.
+
+\begin{assumption}[Realizability]
+We have $f^*\in\c{F}$, which we call \emph{realizability}.
+\end{assumption}
+
+We can consider settings where the $x_t$-values are generated randomly IID from some distribution $\c{P}$, called the \emphmarginnote{stochastic setting}, or settings where they are arbitrary, called the \emphmarginnote{adversarial setting}.
+The best policy is 
+\[
+\pi^*(x_t) = \argmax_{\pi\in\Pi} f^*(x_t, \pi)
+.
+\]
+If $\c{X}$ is finite, we can apply ordinary multi-armed bandits separately for each $x$, which leads to $\sqrt{AT|X|}$ rates. Exercise: prove this.
+
+We now ask: will optimism work?
+The general optimistic template is, at every $t$, construct $\c{F}_t \in \c{F}$, which is some version of a space of plausible models.
+Suppose that, with high probability, $f^* \in \c{F}_t$ for all $t$.
+Define
+\[
+\widebar{f}_t(x,\pi) &= \max_{f\in\c{F}_t} f(x,\pi)
+&
+\underline{f}_t(x,\pi) &= \min_{f\in\c{F}_t} f(x,\pi)
+.
+\]
+Then
+\[
+\underline{f}_t \leq f^* \leq \widebar{f}_t
+\]
+which implies the \emphmarginnote{regret bound}
+\[
+\f{Reg}_{\f{DM}} \leq \sum_{t=1}^T \widebar{f}_t(x_t,\pi_t) - \underline{f}_t(x_t,\pi_t)
+.
+\]
+A natural definition of the \emphmarginnote{optimistic function class} is
+\[
+\c{F}_t = \cbr{f\in\c{F} : \sum_{s=1}^{t-1} (r_s - f(x_t,\pi_s))^2 \leq \sum_{s=1}^{t-1} (r_s - \hat{f}_t(x_s,\pi_s))^2 + \beta}
+\]
+where 
+\[
+\hat{f}_t \in \argmin_{f\in\c{F}} \sum_{s=1}^{t-1} (r_s - f(x_s,\pi_s))^2
+.
+\]
+which picks the function class to be all functions which are close to the best-fit function in a regression sense up to some error $\beta$ which we will choose later.
+This gives the appropriate analog of the preceding confidence interval.
+Note that $\c{F}_t$ need not be nested.
+
+\begin{lemma}
+If $\beta \~ \log\frac{|\c{F}|}{\delta}$, then with probability $1-\delta$, we have:
+\1 $f^* \in \c{F}_t$ for all $t$.
+\2 $\sum_{s=1}^{t-1} (f^*(x_s,\pi_s) - f(x_s,\pi_s))^2 \leq 4\beta$ for any $f \in \c{F}_t$ and any $t = 1,..,T$.
+\0     
+\end{lemma}
+
+\begin{proof}
+Exercise: Bernstein's inequality.
+\end{proof}
+
+An aside: a more general form of this holds for arbitrary algorithms, as long as one randomizes $\pi_s$ appropriately in lieu of UCB.
+Continuing, what we want to do next is show that 
+\[
+\widebar{f}_t(x_t, \pi_t) - f^*(x_t, \pi_t) \o^{?}\leq \sum_{s=1}^{t-1} (f^*(x_s, \pi_s) - f(x^*,\pi_s))^2
+\]
+but this \emphmarginnote{regret bound fails in general}.
+In some sense, the only way this could work is if we can limit the number of times we are surprised by a new $(x_t, \pi_t)$.
+If there are enough times that the new $x_t$ is such that performance on it has nothing to do with performance in the past, we are in trouble.
+
+A positive result is that this works for the \emphmarginnote{linear setting}, where
+\[
+\c{F} = \cbr{f(x,\pi) = \innerprod{\theta}{\phi(x,\pi)} : \theta \in B^d_2(1), \norm{\theta} < C}
+\]
+and $B^d_2$ denotes a Euclidean ball.
+Note that $\phi$ here is fixed and not learned as in neural networks.
+In this case, $\c{F}_t$ consists of functions $f_\theta$ such that \[
+\norm[0]{\theta - \hat\theta_t}^2_\Sigma &\boundedby \beta
+&
+\Sigma_t &= \sum_{s=1}^{t-1} \phi\phi^T
+\]
+which is very similar to what we had before.
+In this case, one can only be surprised on the order of $d$ many times.
+Using an elliptic potential, we get 
+\[
+\f{Reg}_{\f{DM}} \boundedby \sum_{t=1}^T \norm[0]{\phi(x_t,s_t)}_{\Sigma_t^{-1}} \leq \sqrt{\beta d T \log(..)}
+.
+\]
+The function class $\c{F}$ can be approximated by $\log(\frac{1}{\eps})^d$ elements.
+As consequence, we get the \emphmarginnote{regret bound for the linear setting}, namely
+\[
+\log|\c{F}| &\propto d \log T 
+&
+\f{Reg}_{\f{DM}} &\leq d\sqrt{T}\log(..)
+.
+\]
+\subsection{Failure of any kind of optimism}
+Unfortunately, there also exist classes where optimism will fail, in a strong sense which suggests no such approach will work.
+Define 
+\[
+\c{F} &= \{f^*, f_1,..,f_N\}
+&
+\Pi &= \{\pi_g, \pi_b\}
+&
+X &= \{x_1,..,x_n\}
+\]
+and
+\[
+f^*(x_i, \pi_g) &= 1-\eps
+&
+f_j(x, \pi_g) &= 1-\eps,\quad i \neq j
+&
+f_i(x_i, \pi_g) &= 0
+\\
+f^*(x_i, \pi_b) &= 0
+&
+f_j(x, \pi_b) &= 0,\quad i \neq j
+&
+f_i(x_i, \pi_b) &= 1
+.
+\]
+The problem is that on new contexts, we don't share information.
+Let $S_t$ be the set of $x$-values encountered so far, and take $x_t = x_i \notin S_t$ so that $\{f_k : x_k \notin S_t\} \subseteq \c{F}_t$.
+For this choice of $x$-values, we get the \emphmarginnote{regret lower bound}
+\[
+\f{Reg}_{\f{DM}} \geq N(1-\eps)
+.
+\]
+where $N = |\c{F}| - 1$ and $|X| = N$.
+
+We ask: is this fundamental?
+Let's analyze \emphmarginnote{the $\eps$-greedy strategy}.
+Recall that 
+\[
+p_t = \begin{cases}
+\hat\pi_t = \argmax_{\pi\in\Pi} \hat{f}_t(x_t, \pi) & \t{w.p.} 1-\eps
+\\
+\pi_t \~[U](A) &\t{w.p.} \eps
+.
+\end{cases}
+\]
+Let's analyze this. 
+We have the \emphmarginnote{regret upper bound}
+\[
+\E \f{Reg}_{\f{DM}} &\leq (1-\eps) \sum_{t=1}^T f^*(x_t, \pi^*(x_t)) - f^*(x_t, \hat\pi_t) + \eps T 
+\\
+\o^{(i)}&\leq \sum_{t=1}^T \sum_{\pi\in\{\pi^*,\hat\pi_t\}} |f^*(x_t,\pi) - \hat{f}_t(x_t,\pi)| + \eps T
+\\
+&= \sum_{t=1}^T \sum_{\pi\in\{\pi^*,\hat\pi_t\}} \frac{1}{\sqrt{p_t(x,\pi)}} \sqrt{p_t(x,\pi)} |f^*(x_t,\pi) - \hat{f}_t(x_t,\pi)| + \eps T
+\\
+\o^{(ii)}&\leq \sum_{t=1}^T \del{\sum_{\pi\in\{\pi^*,\hat\pi_t\}} \frac{1}{p_t(x,\pi)}}^{1/2} 
+\\
+&\quad\times\del{\sum_{\pi\in\{\pi^*,\hat\pi_t\}} p_t(x,\pi) (f^*(x_t,\pi) - \hat{f}_t(x_t,\pi))^2}^{1/2} + \eps T
+\\
+&\leq \sum_{t=1}^T \sqrt{\frac{2A}{\eps}} \del{\E*_{\pi\~p_t} (f^*(x_t,\pi) - \hat{f}_t(x_t,\pi))^2}^{1/2} + \eps T
+\\
+&\leq \sqrt{\frac{2A}{\eps}} \sqrt{T \sum_{t=1}^T \E_{\pi\~p_t} (f^*(x_t,\pi) - \hat{f}_t(x_t,\pi))^2} + \eps T
+\]
+where (i) is by exercise, (ii) is by Cauchy--Schwarz.
+We therefore see the estimation error showing up: specifically, the type of online estimation error which appeared previously.
+We can show the inner sum is small via Bernstein's inequality to show
+\[
+\sum_{t=1}^T \E*_{\pi\~p_t} (f^*(x_t,\pi) - \hat{f}_t(x_t,\pi))^2 &\leq 2 \sum_{t=1}^T (f^*(x_t,\pi_t) - \hat{f}_t(x_t,\pi_t))^2 
+\\
+&\quad+ \c{O}\del{\log \frac{\c{F}}{\delta}}
+\]
+with probability $1-\delta$, where we have replaced the expectation with respect to $\pi$ by estimation error on the actual trajectory $x_t,\pi_t$ that we have seen.
+One can show the \emphmarginnote{finite class estimation error bound}
+\[
+\f{Est}_{\f{sq}} \leq \log|\c{F}|
+.
+\]
+Balancing terms, we get the \emphmarginnote{regret upper bound with rate}
+\[
+\f{Reg}_{\f{DM}} \boundedby \sqrt{\frac{A}{\eps}} \sqrt{T \log \c{F}} + \eps T \propto T^{2/3} A^{1/3} (\log |\c{F}|)^{1/3}
+.
+\]
+We therefore see the \emphmarginnote{failure of optimism is not fundamental}: other algorithms can do better.
+In particular, one can show that the reason the $\eps$-greedy algorithm fails to get a $\sqrt{T}$ rate because it explores uniformly: one can do better by tilting the exploratory distribution away from bad actions.
+
+Let's see what a good distribution is: we will later see that this distribution comes from fundamental calculations, but it's better to start from the answer to get an idea where we are headed.
+
+\begin{definition}[Inverse gap weighting]
+Given a vector $\hat{f} = (\hat{f}(1), .., \hat{f}(n)) \in \R^A$, and $\gamma > 0$, let  $\hat\pi = \argmax_{\pi\in\Pi} \hat{f}(\pi)$, and define the \emph{inverse gap weighting} distribution $p = \f{IGW}_\gamma(\hat{f})$ by its probability mass function
+\[
+p(\pi) = \frac{1}{\lambda + 2\gamma (\hat{f}(\hat\pi) - \hat{f}(\pi))}
+\]
+where $\lambda\in[1,A]$ is a uniquely-defined constant which ensures $\sum_{\pi\in\Pi} p(\pi) = 1$.
+\end{definition}
+
+To ensure this is well-defined, note that 
+\[
+\frac{1}{\lambda} \leq \sum_{\pi\in\Pi} p(\pi) \leq \frac{A}{\lambda}
+\]
+by various elementary inequalities on the sum and definition of $\hat\pi$.
+
+\begin{lemma}
+For any $\hat{f} \in \R^A$, $\gamma>0$, and $f^*\in\R^A$, if $p = \f{IGW}_\gamma(\hat{f})$, then 
+\[
+\E*_{\pi\~p} \max_{\pi^*\in\Pi} (f^*(\pi^*) - f^*(\pi)) \leq \frac{A}{\gamma} + \gamma\E_{\pi\~p} (\hat{f}(\pi) - f^*(\pi))^2
+.
+\]
+\end{lemma}
+
+\begin{proof}
+Exercise.
+\end{proof}
+
+Call the algorithm which plays this distribution \emphmarginnote{SquareCB}.
+For $t=1,..,T$, we:
+\1 Observe $x_t$.
+\2 Compute $p_t = \f{IGW}_\gamma(\hat{f}_t(x_t, 1), .., \hat{f}_t(x_t, A))$ where $\hat{f}_t$ is an online regression estimator with respect to $(x_1,\pi_1,r_1),.., x_{t-1},\pi_{t-1},r_{t-1}$.
+\3 Choose $\pi_t \~ p_t$ and observe $r_t$.
+\0 
+
+\begin{theorem}[Regret bound for SquareCB]
+SquareCB satisfies 
+\[
+\E \f{Reg}_{\f{DM}} \leq \sqrt{AT\f{Est}_{\f{sq}}} \o^{finite}\boundedby \sqrt{AT \log |\c{F}|}
+.
+\]
+\end{theorem}
+
+\begin{proof}
+Write 
+\[
+&\sum_{t=1}^T f^*(x_t, \pi^*) - \E*_{\pi_t\~p_t} f^*(x_t, \pi_t) 
+\\
+&\quad= \sum_{t=1}^T \E*_{\pi_t\~p_t} (f^*(x_t,\pi^*) - f^*(x_t,\pi_t) - \gamma(\hat{f}_t(x_t,\pi_t) - f^*(x_t,\pi_t))^2)
+\\
+&\qquad+ \gamma \sum_{t=1}^T \E*_{\pi_t\~p_t} \gamma(\hat{f}_t(x_t,\pi_t) - f^*(x_t,\pi_t))^2
+\\
+&\leq T \frac{A}{\gamma} + \gamma \f{Est}_{\f{sq}}
+\\
+&\leq \sqrt{AT\f{Est}_{\f{sq}}}
+\]
+where $\f{Est}_{\f{sq}}$ is of order $\log|\c{F}|$ in the finite setting.
+\end{proof}
+
+SquareCB works for any $x_1,..,x_T$ as long as $\f{Est}_{\f{sq}}(\c{F},T,\delta) = o(T)$.
+There is nothing preventing us from generalizing this significantly.
+The magic is that the actual difficulty gets pushed into the online estimation oracle.
+Let us make some comments:
+\1 This result shows that if online regression is possible, then decision-making is also possible.
+\2 If $x_1,..,x_T$ are IID from $\c{P}_x$, then SquareCB still works, even with ordinary offline regression, in the sense that $\hat{f}_t = \argmin_{f\in\c{F}} \sum_{s=1}^{t-1} (f(x_s,\pi_s) - r_s)^2$.
+This is a recent result due to Simchi-Levi and Xu (2021).
+\3 Inverse gap weighting was first introduced in a paper by Abe and Long (1999), in one of the first papers on linear contextual bandits. However, soon after, people instead started focusing on optimism, and their approach was mostly not followed-up on.
+\0 
+
+\subsection{Structured Bandits}
+
+In contextual bandits, the class $\c{F}$ was introduced mainly to capture structure in context sets $X$.
+We did not focus on structure in the action space $\Pi$.
+We now forget about $X$ and let $\c{F}$ capture structure in $\Pi$.
+For $t=1,..,T$:
+\1 Choose $\pi_t\~p_t \in \Delta(\Pi)$. 
+\2 Observe $r_t\~M^*(\.\given \pi_t)$.
+\0 
+Now, we work with the setting where $\Pi$ is large but structured: if we have to depend on $|\Pi|$, we are only willing to pay $\log|\Pi|$ at most.
+
+\begin{assumption}[Realizability]
+Let $\c{M}$ be the class of models, and assume $M^* \in \c{M}$, which we call \emph{realizability}.
+\end{assumption}
+
+Define the mean rewards under the model, greedy policy under the model, as well as the set of possible mean rewards to be
+\[
+f^M(\pi) &= \E^M(r\given\pi)
+&
+\pi_M &= \argmax_{\pi\in\Pi} f^M(\pi)
+&
+\c{F}_{\c{M}} &= \{f^M : M \in \c{M}\}
+.
+\]
+We write $\c{F} = \c{F}_{\c{M}}$.
+The decision-making \emphmarginnote{regret} is 
+\[
+\f{Reg}_{\f{DM}} = \sum_{t=1}^T f^{M^*}(\pi_{M^*}) - \E*_{\pi_t\~p_t} f^{M^*}(\pi_t)
+.
+\]
+We ask: is it possible to get 
+\[
+\f{Reg}_{\f{DM}} \o^?\boundedby \sqrt{T\log |\c{F}|}
+\]
+or not? 
+The answer is \emph{no}, in general.
+Consider the \emphmarginnote{\null$\sqrt{T\log|\c{F}|}$-counterexample}
+\[
+\c{F} &= \{f_i : i=1,..,A\}
+&
+f_i(\pi) &= \frac{1}{2} + \frac{1}{2} \1_{\pi=i}
+\]
+and take the space of models to be Gaussians with means given by $\c{F}$.
+Thus there is one optimal action for each $f_i$.
+Thus 
+\[
+\f{Reg}_{\f{DM}} \bounds A
+\]
+but $|\c{F}| = A$.
+Thus in general we cannot have $\log|\c{F}|$.
+This tells us that \emph{sharing information across contexts is easier than sharing information across actions}.
+We can therefore ask whether or not 
+\[
+\f{Reg}_{\f{DM}} \o^?\boundedby \sqrt{T\log|\c{F}|} + \c{C}(\c{F},\Pi)
+\]
+where $\c{C}(\c{F},\Pi)$ is some term which quantifies the complexity of $\c{F},\Pi$.
+
+Define the \emphmarginnote{estimation-to-decisions (E2D) algorithm} as follows.
+For $t=1,..,T$:
+\1 Compute an online estimate $\hat{f}_t : \Pi \-> \R$ on $(\pi_1,r_1),..,(\pi_{t-1},r_{t-1})$.
+\2 Letting $\pi_f = \argmax_{\pi\in\Pi} f(\pi)$, compute 
+\[
+p_t = \argmin_{p\in\Delta(\Pi)} \max_{f\in\c{F}_M} \E*_{\pi\~p} f(\pi_f) - f(\pi) - \gamma(f(\pi) - \hat{f}_t(\pi))^2
+.
+\]
+\0 
+
+\begin{lemma}[Inequality for inverse gap weighting]
+For any $f$, any $\gamma$, and any $f^*$, the distribution $p = \f{IGW}_\gamma(\hat{f})$ satisfies 
+\[
+\E*_{\pi\~p} f^*(\pi^*) - f^*(\pi) \leq \frac{A}{\gamma} + \gamma \E*_{\pi\~p} (f^*(\pi) - \hat{f}(\pi))^2
+.
+\]
+\end{lemma}
+
+\begin{proof}
+Similar to preceding argument.
+\end{proof}
+
+In particular, this obviously means that
+\[
+\max_{\hat{f}\in\c{F}} \min_{p\in\Delta(\Pi)} \max_{f^*\in\c{F}} \E*_{\pi\~p} f^*(\pi^*) - f^*(\pi) - \gamma \E*_{\pi\~p} (f^*(\pi) - \hat{f}(\pi))^2 \leq \frac{A}{\gamma}
+.
+\]
+It turns out that $\f{IGW}_\gamma$ is an optimal solution to this problem when $A$ is finite, which can be proved by considering the first-order optimality conditions.
+Define therefore the \emphmarginnote{decision-estimation coefficient}
+\[
+\f{dec}_\gamma^{\f{sq}}(\c{F},\hat{f}) = \min_{p\in\Delta(\Pi)} \max_{f^*\in\c{F}} \E*_{\pi\~p} f^*(\pi^*) - f^*(\pi) - \gamma \E*_{\pi\~p} (f^*(\pi) - \hat{f}(\pi))^2
+.
+\]
+Now, the question is: can we upper-bound regret by this quantity?
+We can, and this gives 
+\[
+\f{Reg}_{\f{DM}} \leq \min_{\gamma>0} T \max_{\hat{f}\in\f{co}(\c{F})} \f{dec}_\gamma^{\f{sq}}(\c{F},\hat{f}) + \gamma \f{Est}_{\f{sq}}
+\]
+where $\f{co}(\c{F})$ denotes the convex hull of $\c{F}$.
+Recall that our model estimates $\hat{f}_t$ in online estimation did not necessarily live in $\c{F}$: we needed to take mixtures, which is where the convex hull appears.
+Define 
+\[
+\f{dec}_\gamma^{\f{sq}}(\c{F}) = \max_{\hat{f}\in\f{co}(\c{F})} \f{dec}_\gamma^{\f{sq}}(\c{F},\hat{f})
+.
+\]
+We can think of this term as the \emph{exploration complexity} of this problem class.
+
+\begin{theorem}[Regret lower bound]
+The minimax regret of a decision-maker can be lower-bounded by
+\[
+\f{Reg}_{\f{DM}} \bounds \min_{\gamma} T \max_{\hat{f}\in\c{F}} \f{dec}_\gamma^{\f{sq}}(\c{F},\hat{f}) + \gamma
+.
+\]
+\end{theorem}
+
+One can work with a slightly more refined notion called \emphmarginnote{constrained DEC}, defined in our particular setting with square loss as
+\[
+\f{dec}_\eps^{\f{c},\f{sq}}(\c{F},\hat{f}) = \min_p \max_{f\in\c{F}} \sbr{\E*_{\pi\~p} f(\pi_f) - f(\pi) : \E (f(\pi) - \hat{f}(\pi))^2 \leq \eps}
+.
+\]
+Then, as long the mean is a sufficient statistic---which can be relaxed via the more refined notion given in the sequel---we have
+\[
+\f{dec}_{\underline\eps}^{\f{c},\f{sq}}(\c{F}) T &\boundedby \f{Reg}_{\f{DM}} \boundedby \f{dec}_{\overline\eps}^{\f{c},\f{sq}}(\c{F}) T
+&
+\underline\eps &\~ \frac{1}{\sqrt{T}}
+&
+\overline\eps &\~ \sqrt{\frac{\log|\c{F}|}{T}}
+.
+\]
+This removes the notion of a convex hull, and various other notions from the original work such as localization.
+Note that estimation error shows up in the upper but not lower bounds: understanding this is a key open problem.
+
+\subsection{Decision-making with structured observations}
+
+One can have situations like the preceding problem class but where information leaks between arms.
+For instance, one can construct settings where there is a Bernoulli arm which is optimal, and Gaussian arms which are suboptimal, where observing the Bernoulli leaks optimality.
+To handle this, one can define the more general \emphmarginnote{decision-making with structured observations} setting.
+For $t=1,..,T$:
+\1 Select $\pi_t \~ p_t \in \Delta(\pi)$.
+\2 Observe $(r_t,o_t) \~ M^*(\.\given\pi_t)$.
+\0 
+Episodic reinforcement learning embeds into this problem class.
+In particular, this means that if we understand sample complexity of this problem class, we understand the sample complexity of reinforcement learning.
+
+One can define the notion of a \emphmarginnote{decision-estimation coefficient} here too, with one modification: estimation error, at least for the discrete case, needs to be replaced with the Hellinger distance.
+This gives 
+\[
+\f{dec}_\gamma^{\f{H}}(\c{F},\hat{f}) = \min_{p\in\Delta(\Pi)} \max_{M\in\c{M}} \E*_{\pi\~p} f^M(\pi^M) - f^M(\pi) - \gamma \E*_{\pi\~p} D_{\f{H}}(M(\.\given\pi), \h{M}(\.\given\pi))^2
+.
+\]
+The constrained version is defined similarly, but where we now have a Hellinger ball as our constraint.
+A good example to consider is the \emph{cheating code} example, where information about other arms is hidden in the binary expansion of rewards in some arm.
+Thus, this notion of DEC tells us how to balance \emph{regret}, which shows up in the terms $f^*(\pi^*) - f^*(\pi)$, with \emph{information gain}, which shows up in the $D_{\f{H}}$-term.
+
+There have been various refinements to this notion.
+One of the main open questions is whether and how to remove the analog of the estimation error term, as in the preceding case.
 
 \end{document}
